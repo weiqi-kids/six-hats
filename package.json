@@ -1,0 +1,44 @@
+{
+  "name": "six-hats",
+  "version": "1.0.0",
+  "description": "six-hats 知識庫",
+  "type": "module",
+  "scripts": {
+    "crawl": "tsx crawlers/crawl.ts",
+    "process": "tsx crawlers/process.ts",
+    "sync": "pnpm run crawl && pnpm run process",
+    "query": "tsx crawlers/query.ts",
+    "status": "tsx crawlers/status.ts",
+    "dev": "concurrently \"pnpm run dev:api\" \"pnpm run dev:web\"",
+    "dev:api": "tsx watch api/index.ts",
+    "dev:web": "cd web && pnpm run dev",
+    "build:web": "cd web && pnpm install && pnpm run build",
+    "start": "tsx api/index.ts",
+    "postinstall": "cd web && pnpm install"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "cheerio": "^1.0.0-rc.12",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "openai": "^4.52.0",
+    "playwright": "^1.58.2",
+    "uuid": "^9.0.1",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.9",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.11.0",
+    "@types/uuid": "^9.0.8",
+    "concurrently": "^8.2.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

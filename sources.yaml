@@ -1,0 +1,10 @@
+# six-hats 資料來源設定
+# 定義此知識庫要抓取的資料來源
+
+sources:
+  - name: example
+    enabled: true
+    description: 範例資料來源
+    crawler: example.ts
+    schedule: daily  # daily | weekly | manual
+    url: https://example.com

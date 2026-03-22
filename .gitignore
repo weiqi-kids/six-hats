@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+web/node_modules/
+
+# Build
+web/dist/
+
+# Environment
+.env
+.env.local
+
+# Data (generated)
+data/raw/
+data/chunks/
+data/vectors/
+data/db/
+data/reports/
+data/deleted/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Lock files (keep pnpm-lock.yaml)
+package-lock.json
+yarn.lock
