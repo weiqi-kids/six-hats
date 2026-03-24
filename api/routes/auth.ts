@@ -6,6 +6,7 @@ import { Router, Response } from "express";
 import { generateToken, authMiddleware, type AuthRequest, type UserRole } from "../middleware/auth.js";
 import { type SessionRequest, getSessionId } from "../middleware/session.js";
 import { createDemoUser, createAdminUser } from "../services/auth.js";
+import { migrateSessionData } from "../db/index.js";
 
 const router = Router();
 
@@ -48,13 +49,20 @@ router.get("/me", authMiddleware, (req: AuthRequest, res) => {
 
 /**
  * POST /api/auth/demo
- * Demo 模式登入（開發/測試用）
+ * 暱稱登入
  */
-router.post("/demo", (req, res) => {
+router.post("/demo", (req: SessionRequest, res: Response) => {
   const { displayName, admin } = req.body;
 
   const user = admin ? createAdminUser() : createDemoUser(displayName);
   const token = generateToken(user.id, user.role as UserRole);
+
+  // 遷移匿名 session 資料
+  const sessionId = getSessionId(req);
+  if (sessionId) {
+    migrateSessionData(sessionId, user.id);
+    res.clearCookie("session_id");
+  }
 
   res.json({ token, user });
 });

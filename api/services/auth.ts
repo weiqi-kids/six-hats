@@ -10,12 +10,13 @@ import { upsertUser, getMainDb, type User } from "../db/index.js";
  * 開發模式：建立一般用戶
  */
 export function createDemoUser(displayName: string = "Demo User"): User {
-  const sanitizedName = (displayName || "demo").toLowerCase().replace(/[^a-z0-9]/g, "-");
+  const name = displayName || "demo";
+  // 用 encodeURIComponent 保留 CJK 字元作為 provider_id
+  const providerId = `demo-${encodeURIComponent(name.toLowerCase())}`;
   return upsertUser({
     provider: "demo",
-    provider_id: `demo-${sanitizedName}`,
-    display_name: displayName || "Demo User",
-    email: `${sanitizedName}@demo.local`,
+    provider_id: providerId,
+    display_name: name,
   });
 }
 

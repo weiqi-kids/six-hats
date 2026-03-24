@@ -5,10 +5,11 @@
  * - 新對話按鈕
  * - 對話列表（按日期分組）
  * - 刪除對話
- * - 用戶資訊
+ * - 用戶資訊 + 登入/登出
  */
 
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { SixHatsSession } from '../../api/six-hats';
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
   onNewSession: () => void;
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
+  onLogout: () => void;
 }
 
 // 日期分組函數
@@ -65,9 +67,11 @@ export default function Sidebar({
   onNewSession,
   onSelectSession,
   onDeleteSession,
+  onLogout,
 }: Props) {
-  // 按日期分組
+  const navigate = useNavigate();
   const groupedSessions = useMemo(() => groupByDate(sessions), [sessions]);
+  const isAnonymous = user?.role === 'anonymous';
 
   return (
     <div
@@ -99,10 +103,7 @@ export default function Sidebar({
         ) : (
           Array.from(groupedSessions.entries()).map(([group, items]) => (
             <div key={group} className="mb-2">
-              {/* 分組標題 */}
               <div className="px-4 py-1 text-xs text-gray-400">{group}</div>
-
-              {/* 該組的對話 */}
               {items.map((session) => (
                 <div
                   key={session.id}
@@ -120,8 +121,6 @@ export default function Sidebar({
                       {session.status === 'concluded' && ' · 已結束'}
                     </p>
                   </div>
-
-                  {/* 刪除按鈕 */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -146,18 +145,39 @@ export default function Sidebar({
       {/* 用戶資訊 */}
       <div className="p-4 border-t border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center text-white text-sm">
-            {user?.display_name?.[0] || '?'}
+          <div className={`w-8 h-8 ${isAnonymous ? 'bg-gray-400' : 'bg-blue-600'} rounded-full flex items-center justify-center text-white text-sm`}>
+            {isAnonymous ? '?' : (user?.display_name?.[0] || 'U')}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm text-gray-900 truncate">
-              {user?.display_name || '訪客'}
+              {isAnonymous ? '訪客' : (user?.display_name || 'User')}
             </p>
             <p className="text-xs text-gray-500">
-              {user?.role === 'anonymous' ? '未登入' : user?.role}
+              {isAnonymous ? '未登入' : user?.role}
             </p>
           </div>
+          {!isAnonymous && (
+            <button
+              onClick={onLogout}
+              className="text-gray-400 hover:text-gray-600"
+              title="登出"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          )}
         </div>
+
+        {/* 匿名用戶提示 */}
+        {isAnonymous && (
+          <button
+            onClick={() => navigate('/login')}
+            className="mt-3 w-full py-2 text-center text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+          >
+            登入以保存對話
+          </button>
+        )}
       </div>
     </div>
   );

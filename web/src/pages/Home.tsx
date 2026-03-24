@@ -45,8 +45,7 @@ export default function Home({ user, setUser }: HomeProps) {
 
   const handleDemoLogin = async (admin: boolean = false) => {
     try {
-      const result = await authApi.demo(admin ? 'Admin' : 'Demo User', admin)
-      localStorage.setItem('token', result.token)
+      const result = await authApi.loginDemo(admin ? 'Admin' : 'Demo User', admin)
       setUser(result.user)
       loadConversations()
     } catch (error) {
@@ -55,9 +54,8 @@ export default function Home({ user, setUser }: HomeProps) {
   }
 
   const handleLogout = async () => {
-    await authApi.logout()
-    const result = await authApi.anonymous()
-    localStorage.setItem('token', result.token)
+    authApi.logout()
+    const result = await authApi.loginAnonymous()
     setUser(result.user)
     setConversations([])
     setCurrentConversation(null)

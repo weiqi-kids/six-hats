@@ -1,45 +1,46 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import SixHats from './pages/SixHats'
-import Home from './pages/Home'
+import Login from './pages/Login'
 import Knowledge from './pages/Knowledge'
-import { authApi } from './api/auth'
+import { authApi, isAuthenticated, type User } from './api/auth'
+
+async function initAuth(): Promise<User | null> {
+  if (isAuthenticated()) {
+    try {
+      const { user } = await authApi.me()
+      return user
+    } catch {
+      authApi.logout()
+      return null
+    }
+  }
+  return null
+}
 
 export default function App() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // 自動匿名登入
-    const init = async () => {
-      try {
-        const token = localStorage.getItem('token')
-        if (token) {
-          const result = await authApi.me()
-          setUser(result.user)
-        } else {
-          const result = await authApi.anonymous()
-          localStorage.setItem('token', result.token)
-          setUser(result.user)
-        }
-      } catch (error) {
-        console.error('Auth error:', error)
-        // 清除可能過期的 token
-        localStorage.removeItem('token')
-        const result = await authApi.anonymous()
-        localStorage.setItem('token', result.token)
-        setUser(result.user)
-      } finally {
-        setLoading(false)
-      }
-    }
-    init()
+    initAuth()
+      .then(setUser)
+      .finally(() => setLoading(false))
   }, [])
+
+  const handleLogin = (user: User) => {
+    setUser(user)
+  }
+
+  const handleLogout = () => {
+    authApi.logout()
+    setUser(null)
+  }
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">載入中...</div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
   }
@@ -47,10 +48,45 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<SixHats user={user} />} />
-        <Route path="/six-hats/:sessionId" element={<SixHats user={user} />} />
-        <Route path="/chat" element={<Home user={user} setUser={setUser} />} />
-        <Route path="/knowledge" element={<Knowledge />} />
+        {/* 登入頁面 */}
+        <Route
+          path="/login"
+          element={
+            user && !authApi.isAnonymous(user)
+              ? <Navigate to="/" replace />
+              : <Login onLogin={handleLogin} />
+          }
+        />
+
+        {/* 主頁面 - 需登入 */}
+        <Route
+          path="/"
+          element={
+            user
+              ? <SixHats user={user} onLogout={handleLogout} />
+              : <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/six-hats/:sessionId"
+          element={
+            user
+              ? <SixHats user={user} onLogout={handleLogout} />
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* 知識庫 */}
+        <Route
+          path="/knowledge"
+          element={
+            user
+              ? <Knowledge />
+              : <Navigate to="/login" replace />
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )

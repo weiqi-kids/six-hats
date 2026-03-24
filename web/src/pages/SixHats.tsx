@@ -21,6 +21,7 @@ import ProgressSteps from '../components/six-hats/ProgressSteps';
 
 interface Props {
   user: any;
+  onLogout: () => void;
 }
 
 // 八個分析步驟（對應後端 onStep 的 role）
@@ -35,7 +36,7 @@ const STEP_CONFIG = [
   { id: 'evaluator', label: '卡內基評估' },
 ];
 
-export default function SixHats({ user }: Props) {
+export default function SixHats({ user, onLogout }: Props) {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const navigate = useNavigate();
   const sendingRef = useRef(false);
@@ -238,6 +239,7 @@ export default function SixHats({ user }: Props) {
         onNewSession={handleNewSession}
         onSelectSession={handleSelectSession}
         onDeleteSession={handleDeleteSession}
+        onLogout={onLogout}
       />
 
       {/* 主內容區 */}

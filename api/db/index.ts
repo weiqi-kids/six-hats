@@ -4,7 +4,8 @@
 
 import Database from "better-sqlite3";
 import { v4 as uuidv4 } from "uuid";
-import { initMainDb, initUserDb } from "./schema.js";
+import * as fs from "fs";
+import { initMainDb, initUserDb, initSixHatsDb, getUserDbPath } from "./schema.js";
 
 let mainDb: Database.Database | null = null;
 const userDbPool: Map<string, Database.Database> = new Map();
@@ -170,4 +171,95 @@ export function getMessages(userId: string, conversationId: string): Message[] {
   return db
     .prepare("SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC")
     .all(conversationId) as Message[];
+}
+
+// ==================== Session Migration ====================
+
+/**
+ * 將匿名 session 的資料遷移到正式用戶帳號
+ */
+export function migrateSessionData(sessionId: string, userId: string): void {
+  const sessionDbPath = getUserDbPath(sessionId);
+
+  if (!fs.existsSync(sessionDbPath)) {
+    return;
+  }
+
+  const sessionDb = new Database(sessionDbPath);
+  const userDb = getUserDb(userId);
+
+  // 確保 six-hats 表已初始化
+  initSixHatsDb(userId);
+
+  try {
+    // 遷移 six_hats_sessions
+    const sessions = sessionDb
+      .prepare("SELECT * FROM six_hats_sessions")
+      .all() as any[];
+
+    for (const s of sessions) {
+      userDb
+        .prepare(
+          `INSERT OR IGNORE INTO six_hats_sessions (id, topic, user_context, current_round, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(s.id, s.topic, s.user_context, s.current_round, s.status, s.created_at, s.updated_at);
+    }
+
+    // 遷移 six_hats_messages
+    const messages = sessionDb
+      .prepare("SELECT * FROM six_hats_messages")
+      .all() as any[];
+
+    for (const m of messages) {
+      userDb
+        .prepare(
+          `INSERT OR IGNORE INTO six_hats_messages (id, session_id, round, phase, role, content, key_points, referenced_hats, tools_used, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(m.id, m.session_id, m.round, m.phase, m.role, m.content, m.key_points, m.referenced_hats, m.tools_used, m.created_at);
+    }
+
+    // 遷移 six_hats_evaluations
+    const evaluations = sessionDb
+      .prepare("SELECT * FROM six_hats_evaluations")
+      .all() as any[];
+
+    for (const e of evaluations) {
+      userDb
+        .prepare(
+          `INSERT OR IGNORE INTO six_hats_evaluations (id, session_id, round, problem, cause, method, best_process, deliverable, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(e.id, e.session_id, e.round, e.problem, e.cause, e.method, e.best_process, e.deliverable, e.created_at);
+    }
+
+    // 遷移 user_attachments
+    try {
+      const attachments = sessionDb
+        .prepare("SELECT * FROM user_attachments")
+        .all() as any[];
+
+      for (const a of attachments) {
+        userDb
+          .prepare(
+            `INSERT OR IGNORE INTO user_attachments (id, filename, original_name, content_type, source_type, source_url, chunk_count, enabled, status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(a.id, a.filename, a.original_name, a.content_type, a.source_type, a.source_url, a.chunk_count, a.enabled, a.status, a.created_at, a.updated_at);
+      }
+    } catch {
+      // user_attachments 表可能不存在
+    }
+
+    // 關閉並刪除 session 資料庫
+    sessionDb.close();
+    userDbPool.delete(sessionId);
+    fs.unlinkSync(sessionDbPath);
+
+    console.log(`Migrated session data from ${sessionId} to ${userId}`);
+  } catch (error) {
+    sessionDb.close();
+    console.error("Migration error:", error);
+  }
 }
