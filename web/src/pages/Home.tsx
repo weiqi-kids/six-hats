@@ -40,7 +40,7 @@ export default function Home({ user, setUser }: HomeProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
-  const [warning, setWarning] = useState<string | null>(null)
+  const [, setWarning] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const handleDemoLogin = async (admin: boolean = false) => {

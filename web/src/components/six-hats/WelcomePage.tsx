@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { HAT_COLORS } from '../../api/six-hats';
 
 export interface UserContext {
+  [key: string]: unknown;
   role?: string;
   industry?: string;
   expertise?: string;
