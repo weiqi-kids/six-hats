@@ -138,7 +138,7 @@ export default function SixHats({ user }: Props) {
     if (!activeSessionId) {
       try {
         const ctx = userContext || pendingUserContext;
-        const data = await sixHatsApi.createSession(content, ctx);
+        const data = await sixHatsApi.createSession(content, ctx as Record<string, unknown>);
         activeSessionId = data.session.id;
         setPendingUserContext(undefined);
         setCurrentSession(data.session);
