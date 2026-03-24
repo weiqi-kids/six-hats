@@ -9,12 +9,12 @@ web/dist/
 .env
 .env.local
 
-# Data (generated)
+# Data (generated, keep in git for deployment)
 data/raw/
 data/chunks/
-data/vectors/
+# data/vectors/  # 保留向量資料，供部署使用
 data/db/
-data/reports/
+# data/reports/  # 保留報告，追蹤同步歷史
 data/deleted/
 
 # OS

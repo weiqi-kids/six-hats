@@ -18,14 +18,19 @@ export interface SearchResult {
   metadata: Record<string, unknown>;
 }
 
-// 相關性閾值 - 低於此分數的結果不顯示
-const RELEVANCE_THRESHOLD = 0.70;
+// 動態閾值設定（由高到低嘗試，黃金比例）
+const THRESHOLD_LEVELS = [0.89, 0.55, 0.34, 0.21];
 
-// 最低門檻 - 低於此分數視為無相關資料
-const MIN_THRESHOLD = 0.50;
+// 絕對最低門檻 - 低於此分數視為完全無相關
+const ABSOLUTE_MIN_THRESHOLD = 0.21;
+
+// 最少需要的結果數
+const MIN_RESULTS = 2;
 
 /**
- * 語意搜尋
+ * 語意搜尋（動態閾值）
+ *
+ * 策略：從高閾值開始，如果結果不足，自動降低閾值重試
  */
 export async function semanticSearch(
   query: string,
@@ -39,21 +44,38 @@ export async function semanticSearch(
   const allResults: Array<VectorEntry & { score: number }> = [];
 
   for (const store of allStores) {
-    const results = searchVectors(store, queryVector, topK * 2); // 多搜一些再過濾
+    const results = searchVectors(store, queryVector, topK * 3); // 多搜一些供過濾
     allResults.push(...results);
   }
 
   // 按分數排序
   allResults.sort((a, b) => b.score - a.score);
 
-  // 過濾低相關性結果，並取前 K 個
-  let filtered = allResults
-    .filter((r) => r.score >= RELEVANCE_THRESHOLD)
-    .slice(0, topK);
+  // 動態調整閾值：從高到低嘗試，直到有足夠結果
+  let filtered: Array<VectorEntry & { score: number }> = [];
+  let usedThreshold = THRESHOLD_LEVELS[0];
 
-  // 如果過濾後沒有結果，且最相關的一筆分數高於最低門檻，才保留
-  if (filtered.length === 0 && allResults.length > 0 && allResults[0].score >= MIN_THRESHOLD) {
-    filtered.push(allResults[0]);
+  for (const threshold of THRESHOLD_LEVELS) {
+    filtered = allResults.filter((r) => r.score >= threshold).slice(0, topK);
+    usedThreshold = threshold;
+
+    if (filtered.length >= MIN_RESULTS) {
+      break; // 結果足夠，停止降低閾值
+    }
+  }
+
+  // 如果所有閾值都試過還是不夠，取最相關的幾筆（只要高於絕對最低門檻）
+  if (filtered.length < MIN_RESULTS && allResults.length > 0) {
+    filtered = allResults
+      .filter((r) => r.score >= ABSOLUTE_MIN_THRESHOLD)
+      .slice(0, topK);
+  }
+
+  // 記錄使用的閾值（供調試）
+  if (filtered.length > 0) {
+    console.log(`[RAG] 搜尋完成: ${filtered.length} 筆結果, 閾值=${usedThreshold}, 最高分=${(filtered[0].score * 100).toFixed(1)}%`);
+  } else {
+    console.log(`[RAG] 搜尋無結果: 最高分=${allResults.length > 0 ? (allResults[0].score * 100).toFixed(1) + '%' : 'N/A'}`);
   }
 
   return filtered.map((r) => ({
@@ -150,6 +172,61 @@ function buildTitle(metadata: Record<string, unknown>): string {
   // }
 
   return metadata.source as string || "Unknown";
+}
+
+/**
+ * 搜尋全域向量 + 用戶個人向量
+ * 用於 six-hats 分析時注入個人知識
+ */
+export async function semanticSearchWithUserVectors(
+  query: string,
+  userId: string,
+  topK: number = 5
+): Promise<SearchResult[]> {
+  const queryVector = await embed(query);
+
+  const allStores = listAllVectorStores();
+  const allResults: Array<VectorEntry & { score: number }> = [];
+
+  for (const store of allStores) {
+    const results = searchVectors(store, queryVector, topK * 3);
+    allResults.push(...results);
+  }
+
+  // 搜尋用戶個人向量（如果存在）
+  const userStoreName = `user-${userId}`;
+  if (!allStores.includes(userStoreName)) {
+    // 嘗試搜尋（可能不存在，searchVectors 會回傳空陣列）
+    const userResults = searchVectors(userStoreName, queryVector, topK * 3);
+    allResults.push(...userResults);
+  }
+
+  allResults.sort((a, b) => b.score - a.score);
+
+  // 動態調整閾值
+  let filtered: Array<VectorEntry & { score: number }> = [];
+  let usedThreshold = THRESHOLD_LEVELS[0];
+
+  for (const threshold of THRESHOLD_LEVELS) {
+    filtered = allResults.filter((r) => r.score >= threshold).slice(0, topK);
+    usedThreshold = threshold;
+
+    if (filtered.length >= MIN_RESULTS) {
+      break;
+    }
+  }
+
+  if (filtered.length < MIN_RESULTS && allResults.length > 0) {
+    filtered = allResults
+      .filter((r) => r.score >= ABSOLUTE_MIN_THRESHOLD)
+      .slice(0, topK);
+  }
+
+  return filtered.map((r) => ({
+    score: r.score,
+    content: r.content,
+    metadata: r.metadata,
+  }));
 }
 
 /**

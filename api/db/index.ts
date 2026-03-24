@@ -121,6 +121,11 @@ export function deleteConversation(userId: string, conversationId: string): void
   db.prepare("DELETE FROM conversations WHERE id = ?").run(conversationId);
 }
 
+export function updateConversationTitle(userId: string, conversationId: string, title: string): void {
+  const db = getUserDb(userId);
+  db.prepare("UPDATE conversations SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(title, conversationId);
+}
+
 // ==================== Message ====================
 
 export interface Message {

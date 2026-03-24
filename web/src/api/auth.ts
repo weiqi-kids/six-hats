@@ -22,6 +22,16 @@ export const authApi = {
     return res.json()
   },
 
+  async demo(displayName?: string, admin?: boolean) {
+    const res = await fetch(`${API_BASE}/auth/demo`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ displayName, admin }),
+    })
+    if (!res.ok) throw new Error('Demo login failed')
+    return res.json()
+  },
+
   async me() {
     const res = await fetch(`${API_BASE}/auth/me`, {
       headers: getHeaders(),

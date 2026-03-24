@@ -3,8 +3,9 @@
  */
 
 import { Router, Response } from "express";
-import { generateToken, authMiddleware, type AuthRequest } from "../middleware/auth.js";
+import { generateToken, authMiddleware, type AuthRequest, type UserRole } from "../middleware/auth.js";
 import { type SessionRequest, getSessionId } from "../middleware/session.js";
+import { createDemoUser, createAdminUser } from "../services/auth.js";
 
 const router = Router();
 
@@ -43,6 +44,19 @@ router.post("/anonymous", (req: SessionRequest, res: Response) => {
  */
 router.get("/me", authMiddleware, (req: AuthRequest, res) => {
   res.json({ user: req.user });
+});
+
+/**
+ * POST /api/auth/demo
+ * Demo 模式登入（開發/測試用）
+ */
+router.post("/demo", (req, res) => {
+  const { displayName, admin } = req.body;
+
+  const user = admin ? createAdminUser() : createDemoUser(displayName);
+  const token = generateToken(user.id, user.role as UserRole);
+
+  res.json({ token, user });
 });
 
 /**

@@ -21,6 +21,9 @@ import { getMainDb, closeAllConnections } from "./db/index.js";
 import authRoutes from "./routes/auth.js";
 import chatRoutes from "./routes/chat.js";
 import searchRoutes from "./routes/search.js";
+import sixHatsRoutes from "./routes/six-hats.js";
+import attachmentRoutes from "./routes/attachments.js";
+import multer from "multer";
 
 const app = express();
 const PORT = process.env.API_PORT || 3000;
@@ -53,6 +56,17 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/six-hats", sixHatsRoutes);
+
+// 附件路由（含 multer file upload middleware）
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+app.use("/api/six-hats/attachments", (req, res, next) => {
+  if (req.path === "/upload" && req.method === "POST") {
+    upload.single("file")(req, res, next);
+  } else {
+    next();
+  }
+}, attachmentRoutes);
 
 // 靜態檔案（前端 build）
 const webDistPath = path.join(import.meta.dirname, "../web/dist");

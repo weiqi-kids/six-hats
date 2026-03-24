@@ -1,7 +1,7 @@
 /**
  * LLM 對話服務
  *
- * 支援 OpenAI 官方 API 和 Azure OpenAI
+ * 支援 OpenAI 官方 API、Azure OpenAI 和 Ollama 本地 LLM
  */
 
 import OpenAI from "openai";
@@ -11,11 +11,27 @@ import type { Citation } from "../db/index.js";
 
 dotenv.config();
 
-// 建立 OpenAI 客戶端（自動偵測使用 OpenAI 或 Azure）
+// 建立 OpenAI 客戶端（自動偵測使用 OpenAI、Azure 或 Ollama）
 function createClient(): { client: OpenAI; model: string } {
+  const provider = process.env.LLM_PROVIDER;
+
+  // 使用 Ollama 本地 LLM
+  if (provider === "ollama") {
+    const baseURL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+    const model = process.env.OLLAMA_CHAT_MODEL || "llama3.2";
+    console.log(`[LLM] 使用 Ollama 本地 LLM (${model})`);
+    return {
+      client: new OpenAI({
+        apiKey: "ollama", // Ollama 不需要 API key，但 OpenAI SDK 需要一個值
+        baseURL: `${baseURL}/v1`,
+      }),
+      model,
+    };
+  }
+
   // 優先使用 OpenAI 官方 API
   const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey && openaiKey !== "your-openai-api-key") {
+  if (openaiKey && openaiKey !== "your-openai-api-key" && openaiKey !== "sk-xxx") {
     console.log("[LLM] 使用 OpenAI 官方 API");
     return {
       client: new OpenAI({ apiKey: openaiKey }),
@@ -41,7 +57,7 @@ function createClient(): { client: OpenAI; model: string } {
   }
 
   // 沒有設定，拋出錯誤
-  throw new Error("請設定 OPENAI_API_KEY 或 AZURE_OPENAI_* 環境變數");
+  throw new Error("請設定 LLM_PROVIDER=ollama、OPENAI_API_KEY 或 AZURE_OPENAI_* 環境變數");
 }
 
 let _clientInstance: { client: OpenAI; model: string } | null = null;
@@ -192,6 +208,7 @@ export interface ChatResponse {
   citations: Citation[];
   workflow?: string[];
   selfCheck?: string;
+  warning?: string;
   flowTrace?: FlowTrace;
 }
 
@@ -262,11 +279,8 @@ export async function chat(
   );
 
   if (!scopeResult.inScope) {
-    // 記錄跳過的步驟
-    pushStep(flowSteps, { node: 'scope_decision', status: 'success', duration: 0, detail: '否' }, onStep);
-    pushStep(flowSteps, { node: 'out_of_scope', status: 'success', duration: 0, detail: '回傳提示訊息' }, onStep);
-
     // 不在服務範疇內，直接回覆（不執行 RAG）
+    pushStep(flowSteps, { node: 'out_of_scope', status: 'success', duration: 0, detail: '問題不在服務範疇' }, onStep);
     const outOfScopeResponse = `您好！您的問題「${userMessage}」不在本系統的服務範疇內。
 
 您可以試著問我這些問題：
@@ -282,11 +296,7 @@ ${SUGGESTED_QUESTIONS.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
     };
   }
 
-  // 範疇檢查通過
-  pushStep(flowSteps, { node: 'scope_decision', status: 'success', duration: 0, detail: '是' }, onStep);
-  pushStep(flowSteps, { node: 'parallel_start', status: 'success', duration: 0, detail: '開始並行處理' }, onStep);
-
-  // 在服務範疇內，執行完整 RAG 流程
+  // 範疇檢查通過，執行完整 RAG 流程
   // 並行處理：搜尋相關資料 + 產生任務拆解
   const parallelStart = Date.now();
 
@@ -449,18 +459,24 @@ ${SUGGESTED_QUESTIONS.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
       onStep
     );
 
-    // 如果還是未通過，加上警告訊息
-    const finalContent = retryCheckResult.passed
-      ? retryContent
-      : `⚠️ **注意：以下回答可能不夠完整或準確，建議諮詢專業人員確認。**\n\n${retryContent}\n\n---\n*系統提示：本回答未能完全通過自動檢核，可能原因是知識庫中缺乏相關資料。*`;
+    // 格式優化（即使未通過檢核也要優化格式）
+    const formattedRetryContent = await trackStep(
+      flowSteps,
+      'format',
+      () => formatResponse(userMessage, retryContent),
+      () => '排版優化完成',
+      onStep
+    );
 
+    // 如果還是未通過，標記警告（不加在內容中）
     return {
-      content: finalContent,
+      content: formattedRetryContent,
       citations: retryCitations,
       workflow,
       selfCheck: retryCheckResult.passed
         ? retryCheckResult.notes || "內容已驗證與來源文件一致"
         : `⚠️ ${retryCheckResult.notes}`,
+      warning: retryCheckResult.passed ? undefined : "以下回答可能不夠完整或準確，建議諮詢專業人員確認。",
       flowTrace: {
         steps: flowSteps,
         totalDuration: Date.now() - totalStart,
@@ -468,9 +484,17 @@ ${SUGGESTED_QUESTIONS.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
     };
   }
 
-  // 自我檢核通過
+  // 自我檢核通過，進行格式優化
+  const formattedContent = await trackStep(
+    flowSteps,
+    'format',
+    () => formatResponse(userMessage, content),
+    () => '排版優化完成',
+    onStep
+  );
+
   return {
-    content,
+    content: formattedContent,
     citations,
     workflow,
     selfCheck: selfCheckResult.notes || "內容已驗證與來源文件一致",
@@ -529,6 +553,54 @@ ${context}
   }
 
   return { passed: true, notes: "自動檢核完成" };
+}
+
+/**
+ * 格式優化專家 - 優化回答的排版和可讀性
+ */
+async function formatResponse(
+  question: string,
+  answer: string
+): Promise<string> {
+  const { client, model } = getClient();
+
+  const formatPrompt = `你是排版優化專家。請優化以下回答的格式，讓它更有條理、更易閱讀。
+
+## 優化原則
+1. **保持原意**：不要改動任何實質內容，只優化排版
+2. **善用標題**：用 ## 或 ### 標題分隔主要段落
+3. **善用列表**：適合條列的內容用 - 或 1. 2. 3.
+4. **重點標註**：關鍵術語用 **粗體** 標註
+5. **段落分明**：適當加入空行分隔不同主題
+
+## 原始問題
+${question}
+
+## 需要優化的回答
+${answer}
+
+## 輸出
+請直接輸出優化後的內容（不要加任何前綴說明）：`;
+
+  try {
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{ role: "user", content: formatPrompt }],
+      temperature: 0.2,
+      max_tokens: 3000,
+    });
+
+    const formattedContent = response.choices[0]?.message?.content?.trim();
+
+    if (formattedContent && formattedContent.length > answer.length * 0.5) {
+      return formattedContent;
+    }
+  } catch (error) {
+    console.error("Format response error:", error);
+  }
+
+  // 格式化失敗時返回原始內容
+  return answer;
 }
 
 /**

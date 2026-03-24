@@ -1,18 +1,20 @@
 /**
  * OpenAI Embedding 模組
- * 支援 OpenAI 官方 API 和 Azure OpenAI
+ * 支援 OpenAI 官方 API、Azure OpenAI 和 Ollama 本地 LLM
  *
- * 優先使用 OpenAI 官方 API，如果沒有設定則嘗試 Azure OpenAI
+ * 優先順序：LLM_PROVIDER=ollama > OpenAI > Azure OpenAI > 假資料
  * 如果都沒有設定，會使用假資料（用於測試）
  */
 
 import OpenAI, { AzureOpenAI } from "openai";
 
 const EMBEDDING_DIMENSION = 1536; // text-embedding-3-small 的維度
+const OLLAMA_EMBEDDING_DIMENSION = 768; // nomic-embed-text 的維度
 
 let client: OpenAI | AzureOpenAI | null = null;
 let useFakeEmbedding = false;
 let embeddingModel = "text-embedding-3-small";
+let currentDimension = EMBEDDING_DIMENSION;
 
 function getClient(): OpenAI | AzureOpenAI | null {
   if (useFakeEmbedding) {
@@ -20,14 +22,30 @@ function getClient(): OpenAI | AzureOpenAI | null {
   }
 
   if (!client) {
+    const provider = process.env.LLM_PROVIDER;
+
+    // 使用 Ollama 本地 embedding
+    if (provider === "ollama") {
+      const baseURL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+      embeddingModel = process.env.OLLAMA_EMBEDDING_MODEL || "nomic-embed-text";
+      currentDimension = OLLAMA_EMBEDDING_DIMENSION;
+      console.log(`[Embedder] 使用 Ollama 本地 Embedding (${embeddingModel})`);
+      client = new OpenAI({
+        apiKey: "ollama",
+        baseURL: `${baseURL}/v1`,
+      });
+      return client;
+    }
+
     // 優先使用 OpenAI 官方 API
     const openaiKey = process.env.OPENAI_API_KEY;
-    if (openaiKey && openaiKey !== "your-openai-api-key") {
+    if (openaiKey && openaiKey !== "your-openai-api-key" && openaiKey !== "sk-xxx") {
       console.log("[Embedder] 使用 OpenAI 官方 API");
       client = new OpenAI({
         apiKey: openaiKey,
       });
       embeddingModel = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
+      currentDimension = EMBEDDING_DIMENSION;
       return client;
     }
 
@@ -44,6 +62,7 @@ function getClient(): OpenAI | AzureOpenAI | null {
         apiVersion,
       });
       embeddingModel = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || "text-embedding-3-small";
+      currentDimension = EMBEDDING_DIMENSION;
       return client;
     }
 

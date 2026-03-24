@@ -1,7 +1,15 @@
 # six-hats 知識庫
 
 ## 概述
-[請填寫此知識庫的描述]
+
+六頂思考帽（Six Thinking Hats）是 Edward de Bono 提出的平行思考方法論。
+本系統使用 AI 多角色協作，從六個不同角度分析問題，最後以卡內基（Carnegie）框架產出結構化決策報告。
+
+### 分析流程
+1. **Blue Hat Opening** — 定義問題、設定目標、決定思考順序
+2. **Five Hats 平行分析** — White（事實）、Red（情感）、Black（風險）、Yellow（機會）、Green（創意）
+3. **Blue Hat Review** — 檢核完整性，決定是否補跑不足的帽子
+4. **Carnegie Evaluator** — 整合所有帽子結果，產出：問題定義 → 原因分析 → 方案選項 → 建議流程
 
 ---
 

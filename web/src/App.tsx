@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import SixHats from './pages/SixHats'
 import Home from './pages/Home'
+import Knowledge from './pages/Knowledge'
 import { authApi } from './api/auth'
 
 export default function App() {
@@ -45,7 +47,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home user={user} />} />
+        <Route path="/" element={<SixHats user={user} />} />
+        <Route path="/six-hats/:sessionId" element={<SixHats user={user} />} />
+        <Route path="/chat" element={<Home user={user} setUser={setUser} />} />
+        <Route path="/knowledge" element={<Knowledge />} />
       </Routes>
     </BrowserRouter>
   )

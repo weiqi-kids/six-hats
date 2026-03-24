@@ -1,10 +1,33 @@
 # six-hats 資料來源設定
-# 定義此知識庫要抓取的資料來源
+# 這些資料用於通用聊天的 RAG，增強方法論問答能力
+# 多角色分析引擎本身不依賴 RAG，使用獨立的 SYSTEM_PROMPT
 
 sources:
-  - name: example
+  # Six Thinking Hats 方法論
+  - name: six-hats-methodology
     enabled: true
-    description: 範例資料來源
-    crawler: example.ts
-    schedule: daily  # daily | weekly | manual
-    url: https://example.com
+    description: Edward de Bono 六帽思考法的核心方法論
+    crawler: six-hats-methodology.ts
+    schedule: manual
+    urls:
+      - https://en.wikipedia.org/wiki/Six_Thinking_Hats
+      - https://zh.wikipedia.org/wiki/%E5%85%AD%E9%A0%82%E6%80%9D%E8%80%83%E5%B8%BD
+
+  # 平行思考與橫向思考
+  - name: lateral-thinking
+    enabled: true
+    description: de Bono 橫向思考法（Green Hat 的理論基礎）
+    crawler: lateral-thinking.ts
+    schedule: manual
+    urls:
+      - https://en.wikipedia.org/wiki/Lateral_thinking
+
+  # Carnegie 問題解決框架
+  - name: carnegie-method
+    enabled: true
+    description: 卡內基問題解決與決策框架（Evaluator 的理論基礎）
+    crawler: carnegie-method.ts
+    schedule: manual
+    urls:
+      - https://en.wikipedia.org/wiki/How_to_Stop_Worrying_and_Start_Living
+      - https://en.wikipedia.org/wiki/Dale_Carnegie
