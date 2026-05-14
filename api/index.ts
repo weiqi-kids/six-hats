@@ -34,6 +34,17 @@ app.use(cors({
   origin: process.env.WEB_URL || "http://localhost:3001",
   credentials: true,
 }));
+
+// 攔截畸形 URI（如 /%c0），避免 Express 4 在 layer.match 階段拋出未捕獲的 URIError 導致進程崩潰
+app.use((req, res, next) => {
+  try {
+    decodeURIComponent(req.path);
+    next();
+  } catch {
+    res.status(400).json({ error: "Bad request URI" });
+  }
+});
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(sessionMiddleware);
